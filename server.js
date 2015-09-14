@@ -3,13 +3,21 @@ var http = require('http');
 
 const PORT=8080;
 
-// We want to be able to gracefully handle Ctrl-C
-process.on("SIGINT", function() { process.exit(); });
-
-// Replace /dev/tty with the correct name
-var serialPort = new SerialPort("/dev/tty", {
-    baudrate: 57600
-});
+function writeToSerialPort(data) {
+  // Replace /dev/tty with the correct name
+  var serialPort = new SerialPort("/dev/tty", {
+      baudRate: 9600,
+      dataBits: 8,
+      bufferSize: 255
+  });
+  serialPort.on("open", function() {
+    serialPort.write(data + "\r", function(err, results) {
+      console.log('err ' + err);
+      console.log('results ' + results);
+    });
+    serialPort.close(function() {});
+  });
+}
 
 function handleRequest(request, response) {
   var body = '';
@@ -21,6 +29,7 @@ function handleRequest(request, response) {
 
   request.on('end', function() {
     try {
+      writeToSerialPort("PWR OFF");
       var data = JSON.parse(body);
       var test = data["test"];
       response.write(test);
