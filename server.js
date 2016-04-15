@@ -1,3 +1,10 @@
+// Get credentials
+var fs = require('fs');
+var privateKey = fs.readFileSync('certs/server.key');
+var certificate = fs.readFileSync('certs/server.crt');
+var credentials = {key: privateKey, cert: certificate};
+
+var https = require('https');
 var SerialPort = require("serialport").SerialPort;
 var bodyParser = require('body-parser');
 var express = require('express');
@@ -12,7 +19,7 @@ const MAC_TTY = "/dev/tty.usbserial";
 const LINUX_TTY = "/dev/ttyUSB0";
 const SERIAL_NAME = MAC_TTY;
 
-const PORT=8080;
+const PORT=443;
 const NULL=String.fromCharCode(0x0d);
 
 const mapping = {
@@ -99,7 +106,13 @@ app.post('/mute', function(req, res) {
   res.send("");
 });
 
-var server = app.listen(PORT, function() {
+app.get('/privacy', function(req, res) {
+  res.send("No privacy whatsoever");
+});
+
+var server = https.createServer(credentials, app);
+
+server.listen(PORT, function() {
   // Callback triggered when successfully listening
   console.log("Server listening on: http://localhost:%s\n", server.address().port);
 });
