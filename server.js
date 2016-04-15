@@ -4,6 +4,7 @@ var privateKey = fs.readFileSync('certs/server.key');
 var certificate = fs.readFileSync('certs/server.crt');
 var credentials = {key: privateKey, cert: certificate};
 
+var os = require('os');
 var https = require('https');
 var SerialPort = require("serialport").SerialPort;
 var bodyParser = require('body-parser');
@@ -11,13 +12,49 @@ var express = require('express');
 var app = express();
 app.use(bodyParser.json());
 
+// Fake OAuth 2.0
+app.get('/privacy', function(req, res) {
+  res.send("No privacy whatsoever");
+});
+
+app.get('/login', function(req, res) {
+  if (req.query.client_id)
+    console.log("Client id: " + req.query.client_id);
+  if (req.query.scope)
+    console.log("scope: " + req.query.scope);
+  if (req.query.redirect_uri) {
+    console.log("Redirect: " + req.query.redirect_uri);
+    res.redirect(res.query.redirect_uri);
+  }
+});
+
+app.post('/token', function(req, res) {
+  if (req.body.client_secret === "secret" &&
+      req.body.client_id === "alexa-skill") {
+    res.write('{"access_token":"RsT5OjbzRn430zqMLgV3Ia"}');
+  } else {
+    res.write('{"error":"invalid_request"}');
+  }
+});
+
+// Logic
+
 /*
    { "payload": "ON" }
 */
 
-const MAC_TTY = "/dev/tty.usbserial";
-const LINUX_TTY = "/dev/ttyUSB0";
-const SERIAL_NAME = MAC_TTY;
+var SERIAL_NAME;
+switch (os.platform().toLowerCase()) {
+  case 'linux':
+    SERIAL_NAME = "/dev/ttyUSB0";
+    break;
+  case 'darwin':
+    SERIAL_NAME = "/dev/tty.usbserial";
+    break;
+  default:
+    SERIAL_NAME = "COM1";
+    break;
+}
 
 const PORT=443;
 const NULL=String.fromCharCode(0x0d);
@@ -106,13 +143,9 @@ app.post('/mute', function(req, res) {
   res.send("");
 });
 
-app.get('/privacy', function(req, res) {
-  res.send("No privacy whatsoever");
-});
-
 var server = https.createServer(credentials, app);
 
 server.listen(PORT, function() {
   // Callback triggered when successfully listening
-  console.log("Server listening on: http://localhost:%s\n", server.address().port);
+  console.log("Server listening on: https://localhost:%s\n", server.address().port);
 });
