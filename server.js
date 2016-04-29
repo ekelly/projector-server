@@ -4,38 +4,16 @@ var privateKey = fs.readFileSync('certs/server.key');
 var certificate = fs.readFileSync('certs/server.crt');
 var credentials = {key: privateKey, cert: certificate};
 
+var util = require('util');
 var os = require('os');
+var request = require('request');
+var http = require('http');
 var https = require('https');
 var SerialPort = require("serialport").SerialPort;
 var bodyParser = require('body-parser');
 var express = require('express');
 var app = express();
 app.use(bodyParser.json());
-
-// Fake OAuth 2.0
-app.get('/privacy', function(req, res) {
-  res.send("No privacy whatsoever");
-});
-
-app.get('/login', function(req, res) {
-  if (req.query.client_id)
-    console.log("Client id: " + req.query.client_id);
-  if (req.query.scope)
-    console.log("scope: " + req.query.scope);
-  if (req.query.redirect_uri) {
-    console.log("Redirect: " + req.query.redirect_uri);
-    res.redirect(res.query.redirect_uri);
-  }
-});
-
-app.post('/token', function(req, res) {
-  if (req.body.client_secret === "secret" &&
-      req.body.client_id === "alexa-skill") {
-    res.write('{"access_token":"RsT5OjbzRn430zqMLgV3Ia"}');
-  } else {
-    res.write('{"error":"invalid_request"}');
-  }
-});
 
 // Logic
 
@@ -56,52 +34,62 @@ switch (os.platform().toLowerCase()) {
     break;
 }
 
-const PORT=443;
-const NULL=String.fromCharCode(0x0d);
+const HTTP_PORT = 8080;
+const HTTPS_PORT = 8443;
+const NULL = String.fromCharCode(0x0d);
 
 const mapping = {
   "power": "PWR",
   "mute": "MUTE"
 };
 
-function createSerialPort(callback) {
-  var serialPort = new SerialPort(SERIAL_NAME, {
-      baudRate: 9600,
-      dataBits: 8,
-      bufferSize: 255
-  });
-  serialPort.on("open", function() {
-    callback(serialPort);
+const RECEIVER_URL = "http://192.168.1.99/YamahaRemoteControl/ctrl";
+const RECEIVER_DATA = "<YAMAHA_AV cmd=\"PUT\"><Main_Zone>" +
+              "<Power_Control><Power>%s</Power></Power_Control></Main_Zone></YAMAHA_AV>\nName\n";
+const commandMapping = {
+  "ON": "On",
+  "OFF": "Standby"
+};
+
+function sendReceiverCommand(command, error) {
+  request.post({
+    method: 'POST',
+    data: util.format(RECEIVER_DATA, commandMapping[command])
+  }, function(err, message, data) {
+    if (err) {
+      error(err);
+    }
   });
 }
 
+var serialPort = new SerialPort(SERIAL_NAME, {
+  baudRate: 9600,
+  dataBits: 8,
+  bufferSize: 255
+});
+
 function writeToSerialPort(data, error) {
-  createSerialPort(function(serialPort) {
-    serialPort.write(data + "\r", function(err, results) {
-      if (err) {
-        error(err);
-      }
-    });
-    serialPort.close(function() {});
+  serialPort.write(data + "\r", function(err, results) {
+    if (err) {
+      error(err);
+    }
   });
 }
 
 function getFromSerialPort(item, success, error) {
-  createSerialPort(function(serialPort) {
-    d = '';
-    serialPort.on("data", function(data) {
-      d += data;
-      if (data == ":") {
-        success(d.split("=")[1].split(NULL)[0]);
-        serialPort.close(function() {});
-      }
-    });
-    serialPort.write(item + "?\r", function(err, results) {
-      if (err) {
-        error(err);
-        serialPort.close(function() {});
-      }
-    });
+  d = '';
+  serialPort.on("data", function(data) {
+    d += data;
+    if (data == ":") {
+      success(d.split("=")[1].split(NULL)[0]);
+      serialPort.close(function() {});
+    }
+  });
+  serialPort.write(item + "?\r", function(err, results) {
+    if (err) {
+      error(err);
+      serialPort.close(function() {});
+    }
   });
 }
 
@@ -115,12 +103,14 @@ app.post('/power', function(req, res) {
   console.log(req.body);
   var data = req.body.payload;
   if (data === "ON" || data === "OFF") {
-    writeToSerialPort(mapping["power"] + " " + data, function(err) {
+    var callback = function(err) {
       console.log(err);
-    });
+    };
+    writeToSerialPort(mapping["power"] + " " + data, callback);
+    sendReceiverCommand(data, callback);
   } else {
   }
-  res.send("");
+  res.send("{\"success\":true}");
 });
 
 app.get('/mute', function(req, res) {
@@ -140,12 +130,15 @@ app.post('/mute', function(req, res) {
     });
   } else {
   }
-  res.send("");
+  res.send("{\"success\":true}");
 });
 
-var server = https.createServer(credentials, app);
+var httpServer = http.createServer(app);
+var httpsServer = https.createServer(credentials, app);
 
-server.listen(PORT, function() {
-  // Callback triggered when successfully listening
-  console.log("Server listening on: https://localhost:%s\n", server.address().port);
+httpServer.listen(HTTP_PORT, function() { // Callback triggered when successfully listening
+  console.log("Server listening on: http://localhost:%s\n", httpServer.address().port);
+});
+httpsServer.listen(HTTPS_PORT, function() { // Callback triggered when successfully listening
+  console.log("Server listening on: https://localhost:%s\n", httpsServer.address().port);
 });
