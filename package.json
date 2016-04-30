@@ -14,6 +14,6 @@
     "express": "^4.13.3",
     "node-oauth2-server": "^2.4.0",
     "request": "^2.72.0",
-    "serialport": "1.7.4"
+    "serialport": "3.0.0"
   }
 }

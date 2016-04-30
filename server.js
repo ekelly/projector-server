@@ -53,10 +53,11 @@ const commandMapping = {
 
 function sendReceiverCommand(command, error) {
   request.post({
-    method: 'POST',
-    data: util.format(RECEIVER_DATA, commandMapping[command])
-  }, function(err, message, data) {
+    uri: RECEIVER_URL,
+    body: util.format(RECEIVER_DATA, commandMapping[command])
+  }, function(err, response, data) {
     if (err) {
+      console.log("Request error");
       error(err);
     }
   });
@@ -82,13 +83,11 @@ function getFromSerialPort(item, success, error) {
     d += data;
     if (data == ":") {
       success(d.split("=")[1].split(NULL)[0]);
-      serialPort.close(function() {});
     }
   });
   serialPort.write(item + "?\r", function(err, results) {
     if (err) {
       error(err);
-      serialPort.close(function() {});
     }
   });
 }
@@ -106,7 +105,8 @@ app.post('/power', function(req, res) {
     var callback = function(err) {
       console.log(err);
     };
-    writeToSerialPort(mapping["power"] + " " + data, callback);
+    writeToSerialPort(mapping["mute"] + " " + data, callback);
+    // writeToSerialPort(mapping["power"] + " " + data, callback);
     sendReceiverCommand(data, callback);
   } else {
   }
