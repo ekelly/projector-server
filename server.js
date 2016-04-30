@@ -105,8 +105,7 @@ app.post('/power', function(req, res) {
     var callback = function(err) {
       console.log(err);
     };
-    writeToSerialPort(mapping["mute"] + " " + data, callback);
-    // writeToSerialPort(mapping["power"] + " " + data, callback);
+    writeToSerialPort(mapping["power"] + " " + data, callback);
     sendReceiverCommand(data, callback);
   } else {
   }
