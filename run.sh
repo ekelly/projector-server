@@ -1,6 +1,6 @@
 #!/bin/sh
 
-PROCESS="sh -c node server.js"
+PROCESS="sh -c node ./src/server.js"
 OUTPUT=$(ps aux | grep -v grep | grep "$PROCESS" | wc -l)
 
 if [ "${OUTPUT}" -gt 0 ] ; then

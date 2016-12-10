@@ -4,8 +4,6 @@ var privateKey = fs.readFileSync('certs/server.key');
 var certificate = fs.readFileSync('certs/server.crt');
 var credentials = {key: privateKey, cert: certificate};
 
-var util = require('util');
-var request = require('request');
 var http = require('http');
 var https = require('https');
 var bodyParser = require('body-parser');
@@ -13,7 +11,8 @@ var express = require('express');
 var app = express();
 app.use(bodyParser.json());
 
-var projector = require('src/projector.js');
+var receiver = require('./receiver.js');
+var projector = require('./projector.js');
 projector.start();
 
 // Logic
@@ -24,27 +23,6 @@ projector.start();
 
 const HTTP_PORT = 8080;
 const HTTPS_PORT = 8443;
-const NULL = String.fromCharCode(0x0d);
-
-const RECEIVER_URL = "http://192.168.1.99/YamahaRemoteControl/ctrl";
-const RECEIVER_DATA = "<YAMAHA_AV cmd=\"PUT\"><Main_Zone>" +
-              "<Power_Control><Power>%s</Power></Power_Control></Main_Zone></YAMAHA_AV>\nName\n";
-const commandMapping = {
-  "ON": "On",
-  "OFF": "Standby"
-};
-
-function sendReceiverCommand(command, error) {
-  request.post({
-    uri: RECEIVER_URL,
-    body: util.format(RECEIVER_DATA, commandMapping[command])
-  }, function(err, response, data) {
-    if (err) {
-      console.log("Request error");
-      error(err);
-    }
-  });
-}
 
 app.get('/power', function(req, res) {
   projector.getPowerStatus(function(data) {
@@ -56,14 +34,19 @@ app.get('/power', function(req, res) {
 app.post('/power', function(req, res) {
   console.log(req.body);
   var data = req.body.payload;
-  if (data === "ON" || data === "OFF") {
-    if (data === "ON") {
+  switch(data) {
+    case "ON":
       projector.turnOn();
-    } else {
+      receiver.turnOn();
+      break;
+    case "OFF":
       projector.turnOff();
-    }
-    sendReceiverCommand(data, callback);
-  } else {
+      receiver.turnOff();
+      break;
+    default:
+      console.log("received unknown data: " + data);
+      res.send("{\"success\":false}");
+      return;
   }
   res.send("{\"success\":true}");
 });
